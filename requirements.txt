@@ -1,0 +1,23 @@
+# FuncionesTesis - Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# Core Scientific Computing
+numpy>=1.20.0
+scipy>=1.7.0
+pandas>=1.3.0
+
+# Visualization
+matplotlib>=3.4.0
+
+# Finite Element Analysis
+openseespy>=3.4.0
+opsvis>=0.1.0
+
+# Optional: Interactive Notebooks
+jupyter>=1.0.0
+ipython>=7.0.0
+
+# Development (optional)
+# ipdb>=0.13.0
+# black>=21.0.0
+# pylint>=2.10.0

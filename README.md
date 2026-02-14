@@ -122,6 +122,50 @@ python-x86 -m jupyter notebook
 
 **Note:** This uses macOS's Rosetta 2 technology to emulate x86_64 on Apple Silicon. Performance is good for most use cases.
 
+#### Using x86_64 Python in VSCode Jupyter Notebooks (Recommended)
+
+To run Jupyter notebooks in VSCode with the correct x86_64 kernel:
+
+**Step 1: Create a custom Jupyter kernel**
+```bash
+source venv/bin/activate
+python -m ipykernel install --user --name python-x86 --display-name "Python 3.11 (x86_64)"
+```
+
+**Step 2: Create an x86_64 wrapper script**
+```bash
+mkdir -p ~/bin
+cat > ~/bin/python-x86-kernel << 'EOF'
+#!/bin/bash
+exec arch -x86_64 /path/to/your/venv/bin/python "$@"
+EOF
+chmod +x ~/bin/python-x86-kernel
+```
+
+Replace `/path/to/your/venv` with your actual venv path (e.g., `/Users/username/Development/FuncionesTesis/venv`).
+
+**Step 3: Update kernel configuration**
+
+Edit `~/Library/Jupyter/kernels/python-x86/kernel.json` and replace the first line of `argv` with:
+```json
+"/path/to/your/home/bin/python-x86-kernel",
+```
+
+**Step 4: Restart VSCode and select kernel**
+- Restart VSCode completely
+- Open your notebook
+- Click the kernel selector (top-right)
+- Select **"Python 3.11 (x86_64)"**
+
+Now your notebooks will run under x86_64 with full OpenSeesPy support!
+
+**Note:** If you see a psutil warning, reinstall it:
+```bash
+source venv/bin/activate
+arch -x86_64 pip uninstall -y psutil
+arch -x86_64 pip install psutil
+```
+
 ### For Windows
 
 #### 1. Open Command Prompt or PowerShell
@@ -326,6 +370,19 @@ For **Apple Silicon Macs**, use:
 ```bash
 arch -x86_64 pip install jupyter
 ```
+
+### Psutil Warning in VSCode Jupyter (macOS Apple Silicon)
+
+**Warning:** `The file 'venv/lib/python3.11/site-packages/psutil/_psutil_osx.abi3.so' seems to be overriding built in modules...`
+
+**Solution:** Reinstall psutil with the correct architecture:
+```bash
+source venv/bin/activate
+arch -x86_64 pip uninstall -y psutil
+arch -x86_64 pip install psutil
+```
+
+Then restart VSCode and the kernel.
 
 ## Documentation
 

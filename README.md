@@ -66,6 +66,62 @@ pip install openseespy opsvis numpy scipy pandas matplotlib
 python -c "import openseespy.opensees; import opsvis; print('Installation successful!')"
 ```
 
+> **⚠️ Apple Silicon (M1/M2/M3/M4) Mac Users:** See the [Apple Silicon Setup](#apple-silicon-setup) section below if you encounter architecture mismatch errors.
+
+### Apple Silicon Setup
+
+**If you see errors like `incompatible architecture (have 'x86_64', need 'arm64')` or vice versa**, OpenSeesPy has limited Apple Silicon support. Follow these steps:
+
+#### Solution: Use x86_64 Python with Rosetta 2 Emulation
+
+**Step 1: Delete old venv (if it exists)**
+```bash
+rm -rf venv
+```
+
+**Step 2: Create x86_64 virtual environment**
+```bash
+arch -x86_64 python3 -m venv venv
+```
+
+**Step 3: Activate venv**
+```bash
+source venv/bin/activate
+```
+
+**Step 4: Install dependencies with x86_64 prefix**
+```bash
+arch -x86_64 pip install --upgrade pip
+arch -x86_64 pip install openseespy opsvis numpy scipy pandas matplotlib jupyter
+```
+
+**Step 5: Verify installation**
+```bash
+arch -x86_64 python -c "import openseespy.opensees; import opsvis; print('Installation successful!')"
+```
+
+#### Using Python Conveniently (Optional)
+
+To avoid typing `arch -x86_64` every time, create a wrapper script:
+
+```bash
+cat > /usr/local/bin/python-x86 << 'EOF'
+#!/bin/bash
+exec arch -x86_64 /path/to/your/venv/bin/python "$@"
+EOF
+chmod +x /usr/local/bin/python-x86
+```
+
+Replace `/path/to/your/venv` with the actual path to your venv (e.g., `/Users/username/Development/FuncionesTesis/venv`).
+
+Then run commands with:
+```bash
+python-x86 lhs_muestreo.py
+python-x86 -m jupyter notebook
+```
+
+**Note:** This uses macOS's Rosetta 2 technology to emulate x86_64 on Apple Silicon. Performance is good for most use cases.
+
 ### For Windows
 
 #### 1. Open Command Prompt or PowerShell
@@ -228,11 +284,20 @@ deactivate
 
 ## Troubleshooting
 
+### Architecture Mismatch (macOS - Apple Silicon)
+
+**Error:** `dlopen(...): tried: ... (mach-o file, but is an incompatible architecture ...)`
+
+**Cause:** OpenSeesPy binaries for macOS are primarily x86_64 (Intel). On Apple Silicon (M1/M2/M3/M4) Macs, Python may default to arm64, creating a mismatch.
+
+**Solution:** Follow the [Apple Silicon Setup](#apple-silicon-setup) section above to use x86_64 Python with Rosetta 2 emulation.
+
 ### OpenSeesPy Installation Issues
 
 If `pip install openseespy` fails, ensure you have:
 - Python 3.8 or higher
 - A compiler (Visual C++ on Windows, GCC on macOS/Linux)
+- **For Apple Silicon Macs:** Follow the [Apple Silicon Setup](#apple-silicon-setup) section
 
 For detailed OpenSeesPy installation help, visit: https://opensees.berkeley.edu/wiki/index.php/OpenSeesPy
 
@@ -244,12 +309,22 @@ If you get import errors, reinstall all dependencies:
 pip install --force-reinstall openseespy opsvis numpy scipy pandas matplotlib
 ```
 
+For **Apple Silicon Macs**, use:
+```bash
+arch -x86_64 pip install --force-reinstall openseespy opsvis numpy scipy pandas matplotlib
+```
+
 ### Jupyter Not Found
 
 Install Jupyter in your virtual environment:
 
 ```bash
 pip install jupyter
+```
+
+For **Apple Silicon Macs**, use:
+```bash
+arch -x86_64 pip install jupyter
 ```
 
 ## Documentation

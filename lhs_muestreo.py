@@ -11,7 +11,7 @@ distribuciones de probabilidad.
 """
 
 import numpy as np
-#from scipy import stats
+from scipy import stats
 import pandas as pd
 
 def generar_lhs_muestreo(n_samples=1000, seed=2025):

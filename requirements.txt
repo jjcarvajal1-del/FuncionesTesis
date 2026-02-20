@@ -16,6 +16,7 @@ opsvis>=0.1.0
 # Optional: Interactive Notebooks
 jupyter>=1.0.0
 ipython>=7.0.0
+nbdime>=3.0.0
 
 # Development (optional)
 # ipdb>=0.13.0

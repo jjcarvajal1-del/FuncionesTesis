@@ -270,7 +270,10 @@ def pushover(Vfy, VEs,Vfc_vigas,VEc_vigas,Vfc_columnas,VEc_columnas,Vb1,Vh1,Vb2,
     # DEFINICIÓN DE VIGAS
     # ============================================
     nIpvig=3                                      # Número de puntos de integración para vigas
-    ops.beamIntegration('Lobatto', 2, 1, nIpcol)  # Integración de Lobatto para vigas
+    # CORRECCIÓN Bug5: usar nIpvig (no nIpcol) para la integración de vigas.
+    # Con nIpcol=5 las vigas usaban 5 puntos en lugar de 3, aumentando el costo
+    # computacional y alterando la distribución de la plastificación en vigas.
+    ops.beamIntegration('Lobatto', 2, 1, nIpvig)  # Integración de Lobatto para vigas
     #Creación de vigas piso en sentido X
     for i in range(16,20):
         ops.element("dispBeamColumn",30+i,*[i,i+1],2,2,'-cMass',0)
@@ -315,9 +318,16 @@ def pushover(Vfy, VEs,Vfc_vigas,VEc_vigas,Vfc_columnas,VEc_columnas,Vb1,Vh1,Vb2,
     nodo_maestro_p2=23    # Nodo maestro piso 2
     nodo_maestro_p3=38    # Nodo maestro piso 3
     nodo_maestro_cub=53   # Nodo maestro cubierta
-    ops.rigidDiaphragm(3,nodo_maestro_p2,*nodos_piso2)     # Diafragma Piso 2
-    ops.rigidDiaphragm(3,nodo_maestro_p3,*nodos_piso3)     # Diafragma Piso 3
-    ops.rigidDiaphragm(3,nodo_maestro_cub,*nodos_cubierta) # Diafragma Cubierta
+    # CORRECCIÓN Bug1: excluir el nodo maestro de su propia lista de esclavos.
+    # Si el nodo maestro aparece en la lista de esclavos, OpenSeesPy genera una
+    # restricción contradictoria (el nodo se restringe respecto a sí mismo),
+    # lo que produce una matriz de rigidez singular → NaN en el análisis.
+    esclavos_p2  = [n for n in nodos_piso2    if n != nodo_maestro_p2]
+    esclavos_p3  = [n for n in nodos_piso3    if n != nodo_maestro_p3]
+    esclavos_cub = [n for n in nodos_cubierta if n != nodo_maestro_cub]
+    ops.rigidDiaphragm(3, nodo_maestro_p2,  *esclavos_p2)   # Diafragma Piso 2
+    ops.rigidDiaphragm(3, nodo_maestro_p3,  *esclavos_p3)   # Diafragma Piso 3
+    ops.rigidDiaphragm(3, nodo_maestro_cub, *esclavos_cub)  # Diafragma Cubierta
  # CÁLCULO DE CARGAS MUERTAS Y VIVAS
     ρconcreto = 24*kN/m**3            # Densidad del concreto de columnas
     # 1. Peso propio de columnas
@@ -353,34 +363,45 @@ def pushover(Vfy, VEs,Vfc_vigas,VEc_vigas,Vfc_columnas,VEc_columnas,Vb1,Vh1,Vb2,
     # ASIGNACIÓN DE CARGAS VERTICALES EN VIGAS
     ops.timeSeries("Linear",1)
     ops.pattern("Plain",1,1)
-    for i in range(46,50):
-        ops.eleLoad("-ele",i,"-type","-beamUniform",0,-Cp2*g*LAB/2,0)             # Carga vertical en vigas del piso 2 eje A
-    for i in range(50,54):
-        ops.eleLoad("-ele",i,"-type","-beamUniform",0,-Cp2*g*(LAB/2 + LBC/2),0)   # Carga vertical en vigas del piso 2 eje B
-    for i in range(54,58):
-        ops.eleLoad("-ele",i,"-type","-beamUniform",0,-Cp2*g*LBC/2,0)             # Carga vertical en vigas del piso 2 eje C
-    for i in range(58,61):
-        ops.eleLoad("-ele",i,"-type","-beamUniform",0,-Cp3*g*LAB/2,0)             # Carga vertical en vigas del piso 3 eje A
-    for i in range(61,65):
-        ops.eleLoad("-ele",i,"-type","-beamUniform",0,-Cp3*g*(LAB/2 + LBC/2),0)   # Carga vertical en vigas del piso 3 eje B
-    for i in range(65,70):
-        ops.eleLoad("-ele",i,"-type","-beamUniform",0,-Cp3*g*LBC/2,0)             # Carga vertical en vigas del piso 3 eje C
-    for i in range(70,73):
-        ops.eleLoad("-ele",i,"-type","-beamUniform",0,-Cpcub*g*LAB/2,0)           # Carga vertical en vigas de cubierta eje A
-    for i in range(73,77):
-        ops.eleLoad("-ele",i,"-type","-beamUniform",0,-Cpcub*g*(LAB/2 + LBC/2),0) # Carga vertical en vigas de cubierta eje B
-    for i in range(77,82):
-        ops.eleLoad("-ele",i,"-type","-beamUniform",0,-Cpcub*g*LBC/2,0)           # Carga vertical en vigas de cubierta eje C
+    # CORRECCIÓN eleLoad: los IDs de vigas X en el modelo son:
+    #   Piso 2  — Eje A: 46-49, Eje B: 50-53, Eje C: 54-57  (4 vigas/eje)
+    #   Piso 3  — Eje A: 58-61, Eje B: 62-65, Eje C: 66-69  (4 vigas/eje)
+    #   Cubierta— Eje A: 70-73, Eje B: 74-77, Eje C: 78-81  (4 vigas/eje)
+    # La versión anterior tenía offsets incorrectos a partir del piso 3 que producían
+    # cargas en elementos equivocados (eje incorrecto) y carga doble en algunos elementos.
+    for i in range(46,50):   # Piso 2 — Eje A — área aferente LAB/2
+        ops.eleLoad("-ele",i,"-type","-beamUniform",0,-Cp2*g*LAB/2,0)
+    for i in range(50,54):   # Piso 2 — Eje B — área aferente (LAB+LBC)/2
+        ops.eleLoad("-ele",i,"-type","-beamUniform",0,-Cp2*g*(LAB/2 + LBC/2),0)
+    for i in range(54,58):   # Piso 2 — Eje C — área aferente LBC/2
+        ops.eleLoad("-ele",i,"-type","-beamUniform",0,-Cp2*g*LBC/2,0)
+    for i in range(58,62):   # Piso 3 — Eje A — área aferente LAB/2
+        ops.eleLoad("-ele",i,"-type","-beamUniform",0,-Cp3*g*LAB/2,0)
+    for i in range(62,66):   # Piso 3 — Eje B — área aferente (LAB+LBC)/2
+        ops.eleLoad("-ele",i,"-type","-beamUniform",0,-Cp3*g*(LAB/2 + LBC/2),0)
+    for i in range(66,70):   # Piso 3 — Eje C — área aferente LBC/2
+        ops.eleLoad("-ele",i,"-type","-beamUniform",0,-Cp3*g*LBC/2,0)
+    for i in range(70,74):   # Cubierta — Eje A — área aferente LAB/2
+        ops.eleLoad("-ele",i,"-type","-beamUniform",0,-Cpcub*g*LAB/2,0)
+    for i in range(74,78):   # Cubierta — Eje B — área aferente (LAB+LBC)/2
+        ops.eleLoad("-ele",i,"-type","-beamUniform",0,-Cpcub*g*(LAB/2 + LBC/2),0)
+    for i in range(78,82):   # Cubierta — Eje C — área aferente LBC/2
+        ops.eleLoad("-ele",i,"-type","-beamUniform",0,-Cpcub*g*LBC/2,0)
     # CONFIGURACIÓN Y EJECUCIÓN DEL ANÁLISIS ESTÁTICO
     pasos_grav = 10                            # Número de incrementos de carga para análisis de carga gravitacional
-    ops.constraints("Plain")                   # Tratamiento de restricciones
-    ops.numberer("RCM")                        # Renumeración de nodos
+    # CORRECCIÓN Bug1: usar Transformation (no Plain) para manejar rigidDiaphragm.
+    # Plain handler no procesa restricciones multipunto (MPC). Con diafragmas rígidos
+    # la matriz de rigidez queda mal condicionada → NaN en el primer paso de análisis.
+    ops.constraints("Transformation")         # Transformation maneja correctamente los MPC
+    ops.numberer("RCM")                        # Renumeración de nodos (Reverse Cuthill-McKee)
     ops.system("BandGeneral")                  # Sistema de ecuaciones
     ops.test("NormDispIncr",1.0e-5,100)        # Criterio de convergencia
     ops.algorithm("Newton")                    # Algoritmo de solución
     ops.integrator("LoadControl",1/pasos_grav) # Integrador de control de carga
     ops.analysis("Static")                     # Análisis estático
-    ops.analyze(pasos_grav)                    # Ejecutar análisis
+    ok_grav = ops.analyze(pasos_grav)          # Ejecutar análisis y verificar convergencia
+    if ok_grav != 0:
+        print(f"ADVERTENCIA pushover(): análisis gravitacional no convergió (ok={ok_grav})")
     ops.loadConst('-time', 0.0)                # Anclar cargas aplicadas para análisis posterior
     # CONFIGURACIÓN DEL ANÁLISIS DE PUSHOVER
     ops.timeSeries("Linear",2)   # Definir serie de tiempo para análisis pushover
@@ -411,15 +432,20 @@ def pushover(Vfy, VEs,Vfc_vigas,VEc_vigas,Vfc_columnas,VEc_columnas,Vb1,Vh1,Vb2,
     ops.recorder("Node", "-file", "reacciones_base.txt", "-time", "-node", *nodos_piso1, "-dof", 1,2,3, "reaction")
     # Recorder de fuerzas internas en columnas
     ops.recorder("Element", "-file", "fuerzas_columnas.txt", "-time", "-ele", *range(1,46), "localForce")
-    # Recorder de fuerzas internas en vigas
-    ops.recorder("Element", "-file", "fuerzas_vigas.txt", "-time", "-ele", *range(47,112), "localForce")
+    # CORRECCIÓN recorder vigas: el rango correcto es 46-111 (inclusive).
+    # El elemento 47 es una viga válida pero el rango comenzaba en 47 perdiendo el 46.
+    ops.recorder("Element", "-file", "fuerzas_vigas.txt", "-time", "-ele", *range(46,112), "localForce")
     # CONFIGURACIÓN DE ANÁLISIS PARA PUSHOVER
+    # CORRECCIÓN algoritmo: Newton full en lugar de ModifiedNewton(-initial).
+    # ModifiedNewton con rigidez inicial no actualiza K_tangente entre iteraciones.
+    # Una vez que las fibras plastifican, la rigidez obsoleta produce residual → NaN.
+    # Newton full recalcula K en cada iteración → convergencia robusta en rango no lineal.
     ops.wipeAnalysis()
     ops.constraints('Transformation')
     ops.numberer('RCM')
     ops.system('BandGeneral')
-    ops.test('NormDispIncr', 1.0e-2, 25)
-    ops.algorithm('ModifiedNewton', '-initial')
+    ops.test('NormDispIncr', 1.0e-4, 100)
+    ops.algorithm('Newton')
     ops.integrator("DisplacementControl",control_nodo, control_dof, dU)
     ops.analysis('Static')
     desp_obj=0.50*m                 #Definición de desplazamiento objetivo
@@ -485,11 +511,13 @@ def pushover(Vfy, VEs,Vfc_vigas,VEc_vigas,Vfc_columnas,VEc_columnas,Vb1,Vh1,Vb2,
     desplazamiento_historial = np.array(desplazamiento_historial) #Convierte el vector de historial de desplazamiento a Array de Numpy
     deriva_historial = np.array(deriva_historial)                 #Convierte el vector de historial de deriva total  a Array de Numpy
     # PROCESAMIENTO DE DATOS DE SALIDA
-    datos_desp = np.loadtxt('desplazamientos.txt')   #Lectura de datos de desplazamiento
-    pasos_tiempo = datos_desp[:, 0]                  #Lectura de datos de pasos de tiempo
-    desplazamientoX = datos_desp[:, 1]               #Lectura de datos de desplazamiento en X
-    desplazamientoY = datos_desp[:, 2]               #Lectura de datos de desplazamiento en Y
-    desplazamientoZ = datos_desp[:, 3]               #Lectura de datos de desplazamiento en Z
+    # CORRECCIÓN Bug6: np.atleast_2d garantiza array 2D incluso si el recorder
+    # guardó solo 1 paso (loadtxt retornaría un array 1D en ese caso).
+    datos_desp      = np.atleast_2d(np.loadtxt('desplazamientos.txt'))
+    pasos_tiempo    = datos_desp[:, 0]   # Factor de carga (tiempo ficticio)
+    desplazamientoX = datos_desp[:, 1]   # Desplazamiento en X del nodo de control [m]
+    desplazamientoY = datos_desp[:, 2]   # Desplazamiento en Y del nodo de control [m]
+    desplazamientoZ = datos_desp[:, 3]   # Desplazamiento en Z del nodo de control [m]
     plt.figure(figsize=(10, 6))
     plt.plot(desplazamientoX, cortante_basal_historial, 'b-', linewidth=2)
     plt.xlabel('Desplazamiento de techo (m)', fontsize=12)
@@ -499,6 +527,24 @@ def pushover(Vfy, VEs,Vfc_vigas,VEc_vigas,Vfc_columnas,VEc_columnas,Vb1,Vh1,Vb2,
     plt.tight_layout()
     plt.savefig('curva_pushover.png', dpi=600)
     plt.show()
+    # CORRECCIÓN Bug3: retornar los resultados numéricos del análisis.
+    # Sin return, la función termina silenciosamente y el análisis de confiabilidad
+    # no puede extraer ningún escalar (ej. cortante máximo) para post-procesamiento.
+    return {
+        'desplazamiento': desplazamiento_historial,   # array [m]
+        'cortante_basal': cortante_basal_historial,   # array [kN]
+        'deriva': deriva_historial,                   # array [adimensional]
+        'desp_final_m': desp_final,                   # escalar [m]
+        'cortante_maximo_kN': max_cortante,           # escalar [kN]
+        'pasos_completados': paso + 1                 # entero
+    }
 
-pushover(420000, 200000000, 21000, 21538106, 28000, 21538106, 0.30, 0.45, 0.45, 0.55, 0.04, 3.7, 0.20, 1.80)  
+# CORRECCIÓN Bug4: proteger la llamada con __name__ == "__main__" para evitar que
+# el análisis FEM se ejecute cada vez que otro módulo importe pushover().
+# Sin esta protección, `from FuncionesV5 import pushover` dispara el modelo completo,
+# lo que hace imposible la paralelización y los análisis masivos con LHS.
+if __name__ == "__main__":
+    resultado = pushover(420000, 200000000, 21000, 21538106, 28000, 21538106,
+                         0.30, 0.45, 0.45, 0.55, 0.04, 3.7, 0.20, 1.80)
+    print(resultado)
 

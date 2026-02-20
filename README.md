@@ -236,6 +236,8 @@ FuncionesTesis/
 ├── puntodesempeño.py           Performance point calculation
 ├── ModeloBaseV4beta*.ipynb     Jupyter notebooks (interactive analysis)
 ├── FuncionesModelo.ipynb       Test notebook
+├── scripts/
+│   └── clean-notebook-metadata.py   Cleans Jupyter notebook metadata for Git
 ├── CLAUDE.md                   Developer guidance
 └── README.md                   This file
 ```
@@ -303,8 +305,26 @@ results = analyzer.realizar_oat()
 | pandas | Latest | Data manipulation and CSV handling |
 | matplotlib | Latest | Plotting and visualization |
 | jupyter | Latest | Interactive notebooks (optional) |
+| nbdime | ≥3.0 | Git diff/merge for Jupyter notebooks (optional) |
 
-See [DEPENDENCIES.md](DEPENDENCIES.md) for detailed dependency tree.
+See [DEPENDENCIES.md](DEPENDENCIES.md) for detailed dependency tree (if present).
+
+### Notebooks and Git
+
+To avoid noisy diffs from notebook metadata (execution counts, kernel info):
+
+1. **nbdime** — Use semantic diff/merge for `.ipynb` files:
+   ```bash
+   pip install nbdime
+   nbdime config-git --enable
+   ```
+   Then `git diff` and `git merge` will show only code and cell content changes.
+
+2. **Clean metadata before commit** — Run the project script to strip metadata from notebooks:
+   ```bash
+   python scripts/clean-notebook-metadata.py ModeloBaseV4beta4.ipynb
+   ```
+   You can optionally set up a [pre-commit hook](https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks) that runs this script on staged `.ipynb` files so commits always store cleaned metadata.
 
 ## Output Files
 
